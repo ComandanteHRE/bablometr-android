@@ -1,0 +1,343 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="light dark">
+<style>html{color-scheme:light}body{margin:0}</style>
+</head>
+<body>
+<title>Bablometr</title>
+<style>
+  /* Layout: one classic "window" card. Gauge, then ONE compact row of fields, then the two time counters. */
+  :root {
+    --page: #cfd6df;
+    --face: #f0f0f0;
+    --ink: #000000;
+    --muted: #5b5b5b;
+    --hi: #ffffff;
+    --shadow: #a0a0a0;
+    --dark: #696969;
+    --field: #ffffff;
+    --trough: #c0c0c0;
+    --fill: #ffff80;
+    --pct: #2d80db;
+    --accent: #0078d7;
+    --title: #ffffff;
+    --strip: #808080;
+    --strip-ink: #fffbf0;
+    --strip-sub: #d4d4d4;
+    --ui: "Microsoft Sans Serif", Tahoma, Roboto, "Segoe UI", system-ui, sans-serif;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --page: #111418; --face: #2c2e31; --ink: #f1f1f1; --muted: #a9adb3;
+      --hi: #4b4e53; --shadow: #1a1b1d; --dark: #0b0c0d; --field: #1b1c1e;
+      --trough: #3b3d41; --fill: #b4b44a; --pct: #8ec1ff; --accent: #3b9cff;
+      --title: #202225; --strip: #4a4d52; --strip-sub: #c4c7cc; color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --page: #111418; --face: #2c2e31; --ink: #f1f1f1; --muted: #a9adb3;
+    --hi: #4b4e53; --shadow: #1a1b1d; --dark: #0b0c0d; --field: #1b1c1e;
+    --trough: #3b3d41; --fill: #b4b44a; --pct: #8ec1ff; --accent: #3b9cff;
+    --title: #202225; --strip: #4a4d52; --strip-sub: #c4c7cc; color-scheme: dark;
+  }
+
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  body {
+    background: var(--page);
+    color: var(--ink);
+    font: 12px/1.25 var(--ui);
+    padding-block: 16px;
+    padding-left: max(16px, env(safe-area-inset-left, 0px));
+    padding-right: max(16px, env(safe-area-inset-right, 0px));
+  }
+  .win {
+    max-width: 564px;
+    margin: 0 auto;
+    background: var(--face);
+    border: 1px solid var(--dark);
+    box-shadow: 0 6px 24px rgba(0, 0, 0, 0.22);
+  }
+  .titlebar {
+    display: flex; align-items: center; gap: 8px;
+    padding: 4px 4px 4px 8px;
+    background: var(--title);
+    font-variant-numeric: tabular-nums;
+    min-width: 0;
+  }
+  .titlebar img.app { width: 16px; height: 16px; flex: none; }
+  .titlebar span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+  .raised { border: 1px solid; border-color: var(--hi) var(--dark) var(--dark) var(--hi); box-shadow: inset -1px -1px 0 var(--shadow); }
+  .sunken { border: 1px solid; border-color: var(--dark) var(--hi) var(--hi) var(--dark); box-shadow: inset 1px 1px 0 var(--shadow); }
+
+  .panel { padding: 6px; display: grid; gap: 6px; }
+
+  /* progress gauge with the money on it */
+  .gauge { position: relative; height: 26px; background: var(--trough); overflow: hidden; padding: 0; }
+  .gauge .bar { position: absolute; inset: 0 auto 0 0; width: 0; background: var(--fill); }
+  .gauge .pct {
+    position: absolute; inset: 0; display: grid; place-items: center;
+    color: var(--pct); font-variant-numeric: tabular-nums; pointer-events: none;
+  }
+  .gauge .money {
+    position: absolute; left: 6px; top: 50%; transform: translateY(-50%);
+    font-weight: 700; color: var(--ink); font-variant-numeric: tabular-nums; white-space: nowrap;
+  }
+
+  /* the one row of small fields */
+  .fields { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 2fr) minmax(0, 1fr) minmax(0, 1.15fr); gap: 4px; align-items: end; }
+  .fld { display: grid; gap: 1px; min-width: 0; }
+  .head { display: flex; align-items: center; justify-content: space-between; gap: 2px; min-height: 18px; }
+  .head label { font-size: 11px; color: var(--muted); white-space: nowrap; }
+
+  input[type="text"], input[type="date"], input[type="time"] {
+    width: 100%; min-width: 0; height: 30px; padding: 0 3px;
+    font: inherit; font-size: 12px; color: var(--ink); background: var(--field);
+    border: 1px solid; border-color: var(--dark) var(--hi) var(--hi) var(--dark);
+    border-radius: 0; box-shadow: inset 1px 1px 0 var(--shadow);
+    font-variant-numeric: tabular-nums;
+  }
+  input[type="date"]::-webkit-calendar-picker-indicator,
+  input[type="time"]::-webkit-calendar-picker-indicator { width: 12px; margin: 0; padding: 0; }
+  input[type="date"]::-webkit-datetime-edit, input[type="time"]::-webkit-datetime-edit { padding: 0; }
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+
+  .ib {
+    width: 28px; height: 28px; display: grid; place-items: center; padding: 0; cursor: pointer; flex: none;
+    background: var(--face); color: var(--ink);
+    border: 1px solid; border-color: var(--hi) var(--dark) var(--dark) var(--hi);
+    box-shadow: inset -1px -1px 0 var(--shadow);
+  }
+  .ib:active { border-color: var(--dark) var(--hi) var(--hi) var(--dark); box-shadow: inset 1px 1px 0 var(--shadow); }
+  .ib img { width: 20px; height: 20px; image-rendering: pixelated; }
+  .ib.tiny { width: 20px; height: 18px; }
+  .ib.tiny img { width: 14px; height: 14px; }
+
+  .stats { display: flex; flex-wrap: wrap; gap: 1px 14px; font-weight: 700; font-variant-numeric: tabular-nums; }
+  .stats span { white-space: pre; min-width: 0; }
+
+  .strip { background: var(--strip); color: var(--strip-ink); display: grid; gap: 2px; justify-items: center; padding: 5px 8px 4px; }
+  .strip small { justify-self: end; font: 10px Arial, sans-serif; color: var(--strip-sub); }
+
+  @media (prefers-reduced-motion: no-preference) { .gauge .bar { transition: width 0.4s linear; } }
+</style>
+
+<main class="win" aria-label="Bablometr">
+  <div class="titlebar">
+    <img class="app" alt="" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAABAUlEQVR4nO2WUQ6DMAiG22UH69E42jwZe5htoIUW6DL34J8YtSr/B2JtSrf2hOcW1mPHHDElxAbyUwBEpCdxiAgAM9+FyDvmOdMLbMwc11MBMfPxps/OGtRKiog8Y8GUBzZWwlKBZk66fmpOxpeVWAEMZa9VkMb7ClkgZiVSzVdSnhOfftpC8uD1dUhwlkalmr2CPMtYKnf3KbZjAAgBqBCTrmfXV+YWABVCMtcyBwA1gmcmHGbB2dxgMfcCDBBiQGPmVd6f0bIxPeYRABUiYh4FGCCi5in5e6AXnqYh879QT7y1wIz4UgDTgkPScbxc95dSmvfOqvgrugEub8Jbl+sNPIl0KLGgxKAAAAAASUVORK5CYII=">
+    <span id="caption">Today:</span>
+    <button type="button" class="ib" id="about" title="About" aria-label="About" aria-expanded="false"><img alt="" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAAkUlEQVR4nJWSQQ7AIAgEl6YP359vD0WLilpJGqPAMCQFzkP+AQCuPktSoUhdWu8LkeTG5nCPAAHf+xWbSUZYc04jUX6nZ4qJAQBIUrmIpOgAh68BpcghquvMLFgB4xpxYmpBqAKYrthCMwtJDXT4DwLAOsM0pgDvbM9TwB+LtcEPiy1gZ3FvDcp0NzAzW9aexgMoPIHKJ68DmgAAAABJRU5ErkJggg=="></button>
+  </div>
+
+  <section class="panel">
+    <div class="gauge sunken" role="progressbar" aria-label="Period progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" id="gauge">
+      <div class="bar" id="bar"></div>
+      <div class="pct" id="pct">0%</div>
+      <div class="money" id="money">$</div>
+    </div>
+
+    <div class="fields">
+      <div class="fld">
+        <div class="head"><label for="startDate">Start</label>
+          <button type="button" class="ib tiny" id="startKind" aria-label="Switch Start between date and time"><img alt="" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABQAAAAUCAYAAACNiR0NAAAAgklEQVR4nM2U4QrAIAiE76IH783dnzU2tU3JHxMiAvu4sxQoDp67VLHaPMnGAoAxhgBA9+RmQlvrJkHi7kkroTl5nxc9UAp4V03y1UUIGIWlgBHYEujVTNtOAbUSEXlASmqoodvAKDT9D0teOdM9pvUidQoDK2bYBdzTZYGc8+x3cQCA8z4jVNE87AAAAABJRU5ErkJggg=="></button></div>
+        <input type="date" id="startDate">
+        <input type="time" id="startTime" step="1" hidden>
+      </div>
+      <div class="fld">
+        <div class="head"><label for="endDate">End</label>
+          <button type="button" class="ib tiny" id="endKind" aria-label="Switch End between date and time"><img alt="" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABQAAAAUCAYAAACNiR0NAAAAgklEQVR4nM2U4QrAIAiE76IH783dnzU2tU3JHxMiAvu4sxQoDp67VLHaPMnGAoAxhgBA9+RmQlvrJkHi7kkroTl5nxc9UAp4V03y1UUIGIWlgBHYEujVTNtOAbUSEXlASmqoodvAKDT9D0teOdM9pvUidQoDK2bYBdzTZYGc8+x3cQCA8z4jVNE87AAAAABJRU5ErkJggg=="></button></div>
+        <input type="date" id="endDate">
+        <input type="time" id="endTime" step="1" hidden>
+      </div>
+      <div class="fld">
+        <div class="head"><label for="rate">$/day</label></div>
+        <input type="text" id="rate" inputmode="decimal" autocomplete="off" value="0">
+      </div>
+      <div class="fld">
+        <div class="head"><label for="bonus">+Bonus$</label></div>
+        <input type="text" id="bonus" inputmode="decimal" autocomplete="off" value="0">
+      </div>
+    </div>
+
+    <div class="stats">
+      <span id="worked">Hours worked:</span>
+      <span id="remain">Remaining period:</span>
+    </div>
+  </section>
+
+  <div class="strip" id="strip" hidden>Ты только что попал на бабки :)<small>© 2003 Dmitriy Filippov</small></div>
+</main>
+
+<script>
+(function () {
+  "use strict";
+  var $ = function (id) { return document.getElementById(id); };
+  var KEY = "bablometr.v2", OLD_KEY = "bablometr.v1";
+  var DAY = 86400;
+
+  /* ---------- numbers and text ---------- */
+  function parseNumber(text) {
+    var t = String(text || "").trim().replace(",", ".");
+    if (t === "") return 0;
+    var v = parseFloat(t);
+    return isFinite(v) && /^-?\d*\.?\d*$/.test(t) ? v : 0;
+  }
+  function fmtMoney(v) { return v.toFixed(3).replace(".", ",") + "$"; }
+  function pad(n, w) { n = String(n); while (n.length < (w || 2)) n = "0" + n; return n; }
+  function fmtSpan(seconds) {
+    var s = Math.max(0, Math.floor(seconds));
+    var d = Math.floor(s / DAY), r = s % DAY;
+    var h = Math.floor(r / 3600), m = Math.floor((r % 3600) / 60), sec = r % 60;
+    return d + " days  " + h + ":" + pad(m) + ":" + pad(sec);
+  }
+  function calc(start, end, now, rate, bonus) {
+    var total = (end - start) / 1000;
+    var elapsed = (now - start) / 1000;
+    if (elapsed < 0) elapsed = 0;
+    if (total > 0 && elapsed > total) elapsed = total;     // nothing is earned after End
+    var money = elapsed / DAY * rate + bonus;
+    if (total > 0) {
+      var p = Math.max(0, Math.min(100, Math.floor(elapsed / total * 100)));
+      return { money: money, elapsed: elapsed, remaining: total - elapsed, progress: p, has: true };
+    }
+    return { money: money, elapsed: elapsed, remaining: 0, progress: 0, has: false };
+  }
+
+  /* ---------- dates ---------- */
+  function fmtDMY(d) { return pad(d.getDate()) + "." + pad(d.getMonth() + 1) + "." + d.getFullYear(); }
+  function fmtHMS(d) { return pad(d.getHours()) + ":" + pad(d.getMinutes()) + ":" + pad(d.getSeconds()); }
+  function toISO(d) { return d.getFullYear() + "-" + pad(d.getMonth() + 1) + "-" + pad(d.getDate()) + "T" + fmtHMS(d); }
+  function fromISO(s, fallback) {
+    var m = /^(\d{4})-(\d\d)-(\d\d)T(\d\d):(\d\d):(\d\d)$/.exec(String(s || ""));
+    if (!m) return fallback;
+    return new Date(+m[1], +m[2] - 1, +m[3], +m[4], +m[5], +m[6]);
+  }
+  function dateValue(d) { return d.getFullYear() + "-" + pad(d.getMonth() + 1) + "-" + pad(d.getDate()); }
+
+  /* ---------- storage (kept in the browser / app; wrapped because it may be unavailable) ---------- */
+  var memory = null;
+  function readJSON(key) {
+    try { var t = localStorage.getItem(key); return t ? JSON.parse(t) : null; } catch (e) { return null; }
+  }
+  function loadSaved() {
+    var d = readJSON(KEY) || memory;
+    if (d && typeof d === "object") return d;
+    // older version had a list of people: take the one that was selected last
+    var old = readJSON(OLD_KEY);
+    if (old && Array.isArray(old.names) && old.names.length && old.people) {
+      var pos = Number.isInteger(old.position) && old.position >= 0 && old.position < old.names.length ? old.position : 0;
+      var p = old.people[old.names[pos]];
+      if (p && typeof p === "object") return p;
+    }
+    return null;
+  }
+  function save() {
+    var d = { start: toISO(fields.start.value), end: toISO(fields.end.value), rate: $("rate").value, bonus: $("bonus").value };
+    memory = d;
+    try { localStorage.setItem(KEY, JSON.stringify(d)); } catch (e) { }
+  }
+  var saveTimer = null;
+  function scheduleSave() {                      // phones can kill the page at any moment, so edits are saved soon after
+    clearTimeout(saveTimer);
+    saveTimer = setTimeout(save, 500);
+  }
+
+  /* ---------- the form ---------- */
+  var now0 = new Date(); now0.setMilliseconds(0);
+  var today0 = new Date(now0.getFullYear(), now0.getMonth(), now0.getDate());
+  var fields = {
+    start: { date: $("startDate"), time: $("startTime"), btn: $("startKind"), kind: "date", value: today0 },
+    end: { date: $("endDate"), time: $("endTime"), btn: $("endKind"), kind: "date", value: new Date(today0.getTime() + 30 * DAY * 1000) }
+  };
+  function render(f) {
+    f.date.value = dateValue(f.value);
+    f.time.value = fmtHMS(f.value);
+    f.date.hidden = f.kind !== "date";
+    f.time.hidden = f.kind !== "time";
+  }
+  function onStartChanged() {                    // Start may not be after End or after the current moment
+    var now = new Date(); now.setMilliseconds(0);
+    if (fields.start.value > fields.end.value) fields.start.value = now;
+    if (fields.start.value > now) fields.start.value = now;
+    render(fields.start);
+  }
+  ["start", "end"].forEach(function (key) {
+    var f = fields[key];
+    f.date.addEventListener("change", function () {
+      var m = /^(\d{4})-(\d\d)-(\d\d)$/.exec(f.date.value);
+      if (m) {
+        var v = new Date(f.value.getTime());
+        v.setFullYear(+m[1], +m[2] - 1, +m[3]);
+        f.value = v;
+      }
+      if (key === "start") onStartChanged(); else render(f);
+      scheduleSave();
+    });
+    f.time.addEventListener("change", function () {
+      var m = /^(\d\d):(\d\d)(?::(\d\d))?$/.exec(f.time.value);
+      if (m) {
+        var v = new Date(f.value.getTime());
+        v.setHours(+m[1], +m[2], +(m[3] || 0), 0);
+        f.value = v;
+      }
+      if (key === "start") onStartChanged(); else render(f);
+      scheduleSave();
+    });
+    f.btn.addEventListener("click", function () { f.kind = f.kind === "date" ? "time" : "date"; render(f); });
+  });
+  ["rate", "bonus"].forEach(function (id) {      // digits, minus, comma or dot only
+    $(id).addEventListener("input", function (e) {
+      var clean = e.target.value.replace(/[^0-9,.\-]/g, "");
+      if (clean !== e.target.value) e.target.value = clean;
+      scheduleSave();
+    });
+  });
+  $("about").addEventListener("click", function () {
+    var strip = $("strip");
+    strip.hidden = !strip.hidden;
+    $("about").setAttribute("aria-expanded", String(!strip.hidden));
+  });
+
+  /* ---------- the meter ---------- */
+  var gauge = $("gauge"), lastPct = -1;
+  function tick() {
+    var now = new Date(); now.setMilliseconds(0);   // whole seconds, so Hours worked + Remaining always add up
+    var caption = "Today: " + fmtDMY(now) + " " + fmtHMS(now);
+    $("caption").textContent = caption;
+    document.title = caption;
+    var st = calc(fields.start.value, fields.end.value, now, parseNumber($("rate").value), parseNumber($("bonus").value));
+    $("money").textContent = fmtMoney(st.money);
+    if (st.progress !== lastPct) {
+      lastPct = st.progress;
+      $("bar").style.width = st.progress + "%";
+      $("pct").textContent = st.progress + "%";
+      gauge.setAttribute("aria-valuenow", String(st.progress));
+    }
+    if (st.has) {
+      $("worked").textContent = "Hours worked: " + fmtSpan(st.elapsed);
+      $("remain").textContent = "Remaining period: " + fmtSpan(st.remaining);
+    }
+  }
+
+  /* ---------- start ---------- */
+  var saved = loadSaved();
+  if (saved) {
+    fields.start.value = fromISO(saved.start, fields.start.value);
+    fields.end.value = fromISO(saved.end, fields.end.value);
+    $("rate").value = String(saved.rate == null ? "0" : saved.rate).replace(/[^0-9,.\-]/g, "");
+    $("bonus").value = String(saved.bonus == null ? "0" : saved.bonus).replace(/[^0-9,.\-]/g, "");
+  }
+  render(fields.start); render(fields.end);
+  window.addEventListener("pagehide", save);
+  document.addEventListener("visibilitychange", function () { if (document.visibilityState === "hidden") save(); });
+  tick();
+  setInterval(tick, 1000);
+})();
+</script>
+
+</body>
+</html>
